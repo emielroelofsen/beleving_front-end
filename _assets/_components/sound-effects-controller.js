@@ -22,6 +22,9 @@ export class SoundEffectsController {
     this._interactionListeners = [];
     this._isMuted = false;
     this._preloadPromises = [];
+    // Only true once startBackgroundMusic() was called (e.g. Spotify fallback),
+    // so unmuting never starts the loop next to the Spotify playlist.
+    this._backgroundRequested = false;
 
     this._preloadBackground();
     this._preloadAll();
@@ -69,7 +72,7 @@ export class SoundEffectsController {
   }
 
   _playBackgroundAudio() {
-    if (!this.backgroundAudio || !this.isRunning || this._isMuted) return;
+    if (!this.backgroundAudio || !this.isRunning || this._isMuted || !this._backgroundRequested) return;
     try {
       this.backgroundAudio.currentTime = 0;
       this.backgroundAudio.play().catch((e) => {
@@ -301,10 +304,36 @@ export class SoundEffectsController {
   }
 
   /**
+   * Call synchronously inside a user gesture (Start click) when the loop is only a fallback.
+   * Plays the loop muted and pauses it right away, so iOS/Chrome allow a later
+   * startBackgroundMusic() from a timer outside the gesture.
+   */
+  unlockBackgroundMusic() {
+    const audio = this.backgroundAudio;
+    if (!audio || this._backgroundRequested) return;
+    try {
+      audio.muted = true;
+      const restore = () => {
+        if (!this._backgroundRequested) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+        audio.muted = this._isMuted;
+      };
+      const p = audio.play();
+      if (p && typeof p.then === 'function') p.then(restore, restore);
+      else restore();
+    } catch (e) {
+      audio.muted = this._isMuted;
+    }
+  }
+
+  /**
    * Start background music. Call this when the user presses Start (not on first generic interaction).
    */
   startBackgroundMusic() {
     this._userHasInteracted = true;
+    this._backgroundRequested = true;
     this._playBackgroundAudio();
   }
 

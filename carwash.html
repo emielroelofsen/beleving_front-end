@@ -14,6 +14,16 @@
 
   <script src="https://kit.fontawesome.com/f041d734e9.js" crossorigin="anonymous"></script>
 
+  <!-- Spotify iframe API: plays the playlist of the chosen SOP (see carwash-music.js).
+       Callback is defined before the API loads so module scripts can't miss it. -->
+  <script>
+    window.onSpotifyIframeApiReady = function (IFrameAPI) {
+      window.__spotifyIFrameAPI = IFrameAPI;
+      window.dispatchEvent(new Event('spotify-iframe-ready'));
+    };
+  </script>
+  <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
+
 	<title>National Autowasbon - POWER WASH</title>
 <style>
   /* Card flip container */
@@ -1439,6 +1449,12 @@
     });
   });
 </script>
+<!-- Spotify player for the chosen SOP playlist. Must stay inside the viewport: Chrome never loads
+     an off-screen or display:none iframe, so it is made invisible with opacity instead. -->
+<div aria-hidden="true" style="position:fixed; right:0; bottom:0; width:300px; height:80px; overflow:hidden; opacity:0; pointer-events:none; z-index:-1;">
+  <div id="carwashSpotifyEmbed"></div>
+</div>
+<script type="module" src="_assets/_components/carwash-music.js"></script>
 <script type="module" src="_assets/_components/carwash-main.js?v=1"></script>
 <script type="module" src="_assets/_components/lottie-mask.js"></script>
 <script type="module">
@@ -2063,8 +2079,11 @@
       e.preventDefault();
       e.stopPropagation();
       
-      // Start background music only when user presses Start
-      if (window.soundEffectsController && typeof window.soundEffectsController.startBackgroundMusic === 'function') {
+      // Start background music only when user presses Start.
+      // Spotify playlist of the chosen SOP; carwashMusic falls back to the mp3 loop itself.
+      if (window.carwashMusic && typeof window.carwashMusic.play === 'function') {
+        window.carwashMusic.play();
+      } else if (window.soundEffectsController && typeof window.soundEffectsController.startBackgroundMusic === 'function') {
         window.soundEffectsController.startBackgroundMusic();
       }
 
@@ -2563,6 +2582,7 @@
       // Add click handler
       soundBtn.addEventListener('click', () => {
         const isMuted = window.soundEffectsController.toggleMute();
+        window.carwashMusic?.setMuted(isMuted);
         updateSoundIcon(isMuted);
       });
     }
